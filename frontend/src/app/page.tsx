@@ -246,11 +246,22 @@ export default function LandingPage() {
                       <p className="text-base text-slate-600 line-clamp-3 leading-relaxed">
                         {job.description}
                       </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(job.skills) ? job.skills : (job.skills ? String(job.skills).split(',') : [])).slice(0, 3).map((s: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-[10px] font-semibold border-slate-200 bg-slate-50 text-slate-700 px-2 py-1 rounded-md">{s.trim()}</Badge>
+                        ))}
+                      </div>
                     </CardContent>
-                    <CardFooter className="pt-8 pb-8 border-t border-slate-100">
-                      <Link href={`/jobs/${job.id}`} className="w-full">
-                        <Button className="w-full h-14 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-bold uppercase transition-all flex items-center justify-center shadow-sm">
-                          View Details
+                    <CardFooter className="pt-6 pb-8 border-t border-slate-100 flex gap-3">
+                      <Button
+                        className="flex-1 h-12 rounded-xl bg-primary text-white font-bold uppercase text-xs tracking-wider shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+                        onClick={() => setSelectedJob(job)}
+                      >
+                        Apply Now
+                      </Button>
+                      <Link href={`/public-jobs`} className="flex-1">
+                        <Button variant="outline" className="w-full h-12 rounded-xl border-slate-200 font-bold text-xs uppercase tracking-wider text-slate-600 hover:bg-slate-50">
+                          Details
                         </Button>
                       </Link>
                     </CardFooter>
@@ -389,6 +400,68 @@ export default function LandingPage() {
            </div>
         </div>
       </footer>
+    </div>
+
+      {/* Inline Apply Modal */}
+      <AnimatePresence>
+        {selectedJob && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="w-full max-w-lg"
+            >
+              <Card className="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
+                <div className="h-1.5 w-full bg-primary" />
+                <CardHeader className="text-center pt-10 pb-6">
+                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-primary mx-auto mb-4">
+                    <Briefcase className="w-7 h-7" />
+                  </div>
+                  <CardTitle className="text-2xl font-bold text-slate-900">Apply for Role</CardTitle>
+                  <CardDescription className="text-base font-medium text-slate-500 mt-1">{selectedJob.title}</CardDescription>
+                </CardHeader>
+                <form onSubmit={handleApply}>
+                  <CardContent className="space-y-5 px-8">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">Full Name</label>
+                      <input
+                        type="text" required placeholder="Jane Doe"
+                        className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        value={applyData.name}
+                        onChange={e => setApplyData({...applyData, name: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">Email Address</label>
+                      <input
+                        type="email" required placeholder="jane@example.com"
+                        className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        value={applyData.email}
+                        onChange={e => setApplyData({...applyData, email: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">Resume (PDF)</label>
+                      <label htmlFor="lp-resume" className="flex items-center justify-center gap-3 h-16 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-slate-50 transition-all">
+                        <Sparkles className="w-5 h-5 text-primary" />
+                        <span className="text-sm font-semibold text-slate-500">{applyData.resume ? applyData.resume.name : 'Click to select PDF'}</span>
+                        <input id="lp-resume" type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={e => setApplyData({...applyData, resume: e.target.files?.[0] || null})} required />
+                      </label>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex gap-4 px-8 pb-8 pt-4">
+                    <Button type="button" variant="ghost" className="flex-1 h-12 rounded-xl font-bold uppercase text-xs text-slate-600 hover:bg-slate-100" onClick={() => setSelectedJob(null)}>Cancel</Button>
+                    <Button type="submit" className="flex-1 h-12 rounded-xl bg-primary text-white font-bold uppercase text-xs tracking-wider shadow-sm" disabled={applying || !applyData.resume}>
+                      {applying ? 'Submitting...' : 'Submit Application'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

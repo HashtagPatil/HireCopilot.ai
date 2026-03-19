@@ -4,13 +4,15 @@ import { authenticate } from '../middlewares/auth';
 
 const router = Router();
 
-router.get('/all', getJobs); // Publicly accessible - MUST BE ABOVE authenticate
+// PUBLIC routes (no auth needed)
+router.get('/all', getJobs);         // All jobs for public careers page
+router.get('/:id', getJobById);      // Job details for public apply page
 
+// PROTECTED routes (auth required)
 router.use(authenticate);
 
 router.post('/generate-description', generateDescription);
 router.post('/', createJob);
 router.get('/', getJobs);
-router.get('/:id', getJobById);
 
 export default router;
