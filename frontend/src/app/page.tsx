@@ -17,6 +17,9 @@ export default function LandingPage() {
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [applyData, setApplyData] = useState({ name: '', email: '', resume: null as File | null });
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     async function fetchJobs() {
@@ -32,7 +35,30 @@ export default function LandingPage() {
     fetchJobs();
   }, []);
 
+  const handleApply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!applyData.resume || !selectedJob) return;
+    setApplying(true);
+    const form = new FormData();
+    form.append('name', applyData.name);
+    form.append('email', applyData.email);
+    form.append('resume', applyData.resume);
+    form.append('jobId', selectedJob.id);
+    try {
+      await api.post('/candidates/upload', form);
+      setSelectedJob(null);
+      setApplyData({ name: '', email: '', resume: null });
+      alert('Application submitted successfully! We will be in touch.');
+    } catch {
+      alert('Failed to submit. Please try again.');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+
   return (
+    <>
     <div className="flex flex-col min-h-screen mesh-gradient">
       <div className="fixed top-24 left-0 right-0 z-40 h-10 bg-white/80 backdrop-blur-md border-y border-slate-200 overflow-hidden flex items-center shadow-sm">
         <div className="flex whitespace-nowrap animate-[marquee_30s_linear_infinite] px-4 gap-12 items-center">
@@ -442,10 +468,10 @@ export default function LandingPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">Resume (PDF)</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">Resume (PDF / DOC)</label>
                       <label htmlFor="lp-resume" className="flex items-center justify-center gap-3 h-16 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-slate-50 transition-all">
                         <Sparkles className="w-5 h-5 text-primary" />
-                        <span className="text-sm font-semibold text-slate-500">{applyData.resume ? applyData.resume.name : 'Click to select PDF'}</span>
+                        <span className="text-sm font-semibold text-slate-500">{applyData.resume ? applyData.resume.name : 'Click to select file'}</span>
                         <input id="lp-resume" type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={e => setApplyData({...applyData, resume: e.target.files?.[0] || null})} required />
                       </label>
                     </div>
@@ -462,7 +488,7 @@ export default function LandingPage() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 
