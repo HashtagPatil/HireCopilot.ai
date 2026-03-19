@@ -93,4 +93,4 @@ Backend API (Node.js, Express, TypeScript)
 4. Visit the **AI Recruiter** tab and ask queries like "Summarize the latest candidate's experience".
 5. Use the Actions inside the Candidate view to auto-generate rejection/invite emails.
 
-Created by [@HashtagPatil](https://github.com/HashtagPatil) | MIT License
+Created by [@HashtagPatil](https://github.com/HashtagPatil) 
