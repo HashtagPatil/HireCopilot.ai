@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("recruiter")
+  createdAt DateTime @default(now())
+  jobs      Job[]
+}
+
+model Job {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  requirements Json
+  skills       Json
+  experience   String
+  embeddingId  String?  // Reference to vector store JSON file key
+  recruiterId  String
+  recruiter    User     @relation(fields: [recruiterId], references: [id])
+  candidates   Candidate[]
+  createdAt    DateTime @default(now())
+}
+
+model Candidate {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  phone        String?
+  resumeUrl    String
+  skills       Json
+  experience   String?
+  embeddingId  String?  // Reference to vector store JSON file key
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id])
+  matchScore   Float?
+  matchReason  String?
+  status       String   @default("pending") // pending, shortlisted, rejected, hired
+  createdAt    DateTime @default(now())
+}
