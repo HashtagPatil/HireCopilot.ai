@@ -199,7 +199,7 @@ Change theme in the top Navbar → colour picker icon.
 
 ## 📄 License
 
-MIT © 2026 [HireCopilot](https://github.com/HashtagPatil/HireCopilot.ai)
+AMIT PATIL © 2026 [HireCopilot](https://github.com/HashtagPatil/HireCopilot.ai)
 
 ---
 
