@@ -20,7 +20,7 @@ model User {
 model Job {
   id           String      @id @default(uuid())
   title        String
-  description  String
+  description  String      @db.Text
   requirements Json
   skills       Json
   experience   String
@@ -44,7 +44,8 @@ model Candidate {
   embeddingId String?
   jobId       String
   matchScore  Float?
-  matchReason String?
+  matchReason String?     @db.Text
+
   status      String   @default("pending")
   createdAt   DateTime @default(now())
   job         Job      @relation(fields: [jobId], references: [id])
