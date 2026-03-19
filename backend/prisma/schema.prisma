@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -17,32 +18,36 @@ model User {
 }
 
 model Job {
-  id           String   @id @default(uuid())
+  id           String      @id @default(uuid())
   title        String
   description  String
   requirements Json
   skills       Json
   experience   String
-  embeddingId  String?  // Reference to vector store JSON file key
+  embeddingId  String?
   recruiterId  String
-  recruiter    User     @relation(fields: [recruiterId], references: [id])
+  createdAt    DateTime    @default(now())
   candidates   Candidate[]
-  createdAt    DateTime @default(now())
+  recruiter    User        @relation(fields: [recruiterId], references: [id])
+
+  @@index([recruiterId], map: "Job_recruiterId_fkey")
 }
 
 model Candidate {
-  id           String   @id @default(uuid())
-  name         String
-  email        String
-  phone        String?
-  resumeUrl    String
-  skills       Json
-  experience   String?
-  embeddingId  String?  // Reference to vector store JSON file key
-  jobId        String
-  job          Job      @relation(fields: [jobId], references: [id])
-  matchScore   Float?
-  matchReason  String?
-  status       String   @default("pending") // pending, shortlisted, rejected, hired
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  name        String
+  email       String
+  phone       String?
+  resumeUrl   String
+  skills      Json
+  experience  String?
+  embeddingId String?
+  jobId       String
+  matchScore  Float?
+  matchReason String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  @@index([jobId], map: "Candidate_jobId_fkey")
 }

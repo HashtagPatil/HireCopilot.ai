@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 export const uploadResume = async (req: Request, res: Response) => {
   try {
-    const { jobId } = req.body;
+    const { jobId, name, email } = req.body;
     const file = req.file;
 
     if (!file || !jobId) {
@@ -18,41 +18,52 @@ export const uploadResume = async (req: Request, res: Response) => {
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) return res.status(404).json({ error: 'Job not found.' });
 
-    // 1. Parse PDF
-    const resumeText = await PdfService.parsePdf(file.path);
-    
-    // 2. Generate Embedding
-    const embedding = await AIService.getEmbedding(resumeText);
+    // 1. Parse PDF (graceful fallback)
+    let resumeText = `Resume submitted by ${name || 'Unknown'}. Email: ${email || 'unknown@example.com'}.`;
+    try {
+      const parsed = await PdfService.parsePdf(file.path);
+      if (parsed && parsed.length > 50) resumeText = parsed;
+    } catch (pdfErr) {
+      console.warn('PDF parsing failed, using fallback text');
+    }
 
-    // 3. Evaluate candidate against Job Description
-    const jobDescriptionFull = `${job.title} \n ${job.description} \n Requirements: ${JSON.stringify(job.requirements)}`;
-    const evaluation = await AIService.evaluateCandidate(resumeText, jobDescriptionFull);
+    // 2. AI evaluation (graceful fallback)
+    let matchScore = 50;
+    let matchReason = 'Application submitted. Manual review required.';
+    try {
+      const embedding = await AIService.getEmbedding(resumeText);
+      const jobDescriptionFull = `${job.title} \n ${job.description} \n Requirements: ${JSON.stringify(job.requirements)}`;
+      const evaluation = await AIService.evaluateCandidate(resumeText, jobDescriptionFull);
+      matchScore = evaluation.score;
+      matchReason = evaluation.reason;
 
-    // 4. Save Candidate
+      vectorStore.addEmbedding({
+        id: jobId + '_' + Date.now(),
+        type: 'candidate',
+        embedding,
+        metadata: { name: name || 'Unknown', jobId }
+      });
+    } catch (aiErr) {
+      console.warn('AI evaluation skipped (AI unavailable):', (aiErr as Error).message);
+    }
+
+    // 3. Save Candidate using name/email from form
     const resumeUrl = `/uploads/${file.filename}`;
-    // Simple extraction for MVP (You'd typically use LLM to extract this neatly)
-    const nameMatch = resumeText.split('\n').find(line => line.trim().length > 0 && line.length < 50) || 'Unknown Candidate';
-    
+    const candidateName = name?.trim() || resumeText.split('\n').find(l => l.trim().length > 0 && l.length < 50) || 'Unknown Candidate';
+    const candidateEmail = email?.trim() || 'applicant@example.com';
+
     const candidate = await prisma.candidate.create({
       data: {
-        name: nameMatch.trim(),
-        email: 'extracted@example.com', // Mock
+        name: candidateName,
+        email: candidateEmail,
         resumeUrl,
-        skills: [], // Mock extraction
+        skills: [],
         jobId,
-        matchScore: evaluation.score,
-        matchReason: evaluation.reason,
-        status: evaluation.score > 75 ? 'shortlisted' : 'pending',
-        embeddingId: 'pending'
+        matchScore,
+        matchReason,
+        status: matchScore > 75 ? 'shortlisted' : 'pending',
+        embeddingId: jobId
       }
-    });
-
-    // 5. Save vector
-    vectorStore.addEmbedding({
-      id: candidate.id,
-      type: 'candidate',
-      embedding,
-      metadata: { name: candidate.name, jobId }
     });
 
     await prisma.candidate.update({
@@ -62,8 +73,30 @@ export const uploadResume = async (req: Request, res: Response) => {
 
     res.status(201).json(candidate);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to process resume.' });
+    console.error('RESUME_UPLOAD_ERROR:', error);
+    res.status(500).json({ error: 'Failed to process resume. Check server logs.' });
+  }
+};
+
+export const getCandidates = async (req: Request, res: Response) => {
+  try {
+    const recruiterId = (req as any).user?.id;
+    const { jobId } = req.query;
+
+    const where: any = {};
+    if (jobId) where.jobId = jobId;
+    if (recruiterId) {
+      where.job = { recruiterId };
+    }
+
+    const candidates = await prisma.candidate.findMany({
+      where,
+      include: { job: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(candidates);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch candidates.' });
   }
 };
 
@@ -94,8 +127,17 @@ export const generateCandidateEmail = async (req: Request, res: Response) => {
 
     if (!candidate) return res.status(404).json({ error: 'Candidate not found.' });
 
-    const emailContent = await AIService.generateEmail(type, candidate.name, (candidate as any).job.title);
-    res.json({ email: emailContent });
+    try {
+      const emailContent = await AIService.generateEmail(type, candidate.name, (candidate as any).job.title);
+      res.json({ email: emailContent });
+    } catch (aiErr) {
+      // Fallback email template
+      const templates: Record<string, string> = {
+        invite: `Dear ${candidate.name},\n\nWe are pleased to invite you for an interview for the ${(candidate as any).job?.title} position. Please reply to schedule a convenient time.\n\nBest regards,\nHireCopilot Team`,
+        reject: `Dear ${candidate.name},\n\nThank you for your interest in the ${(candidate as any).job?.title} position. After careful consideration, we have decided to move forward with other candidates.\n\nWe wish you the best in your job search.\n\nBest regards,\nHireCopilot Team`
+      };
+      res.json({ email: templates[type] || templates['invite'] });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to generate email.' });

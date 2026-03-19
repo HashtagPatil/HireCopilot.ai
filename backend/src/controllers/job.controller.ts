@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 
 export const createJob = async (req: Request, res: Response) => {
   try {
-    const { title, description, requirements, skills, experience, recruiterId } = req.body;
+    const { title, description, requirements, skills, experience } = req.body;
+    const recruiterId = (req as any).user?.id;
 
-    // We can compute the embedding for the job description to match with candidates
-    const combinedText = `${title} ${description} ${requirements} ${skills} ${experience}`;
-    const embedding = await AIService.getEmbedding(combinedText);
+    if (!recruiterId) return res.status(401).json({ error: 'Unauthorized' });
 
+    // Create job first (don't block on AI)
     const job = await prisma.job.create({
       data: {
         title,
@@ -21,23 +21,25 @@ export const createJob = async (req: Request, res: Response) => {
         skills,
         experience,
         recruiterId,
-        embeddingId: 'pending', // Will update right after
+        embeddingId: 'pending',
       },
     });
 
-    // Save embedding
-    vectorStore.addEmbedding({
-      id: job.id,
-      type: 'job',
-      embedding,
-      metadata: { title, recruiterId }
-    });
-
-    // Update with its own id as embeddingId (just for reference)
-    await prisma.job.update({
-      where: { id: job.id },
-      data: { embeddingId: job.id }
-    });
+    // Try to compute embedding (non-blocking if AI fails)
+    try {
+      const combinedText = `${title} ${description} ${requirements} ${skills} ${experience}`;
+      const embedding = await AIService.getEmbedding(combinedText);
+      vectorStore.addEmbedding({
+        id: job.id,
+        type: 'job',
+        embedding,
+        metadata: { title, recruiterId }
+      });
+      await prisma.job.update({ where: { id: job.id }, data: { embeddingId: job.id } });
+    } catch (embeddingErr) {
+      console.warn('Job embedding skipped (AI unavailable):', (embeddingErr as Error).message);
+      await prisma.job.update({ where: { id: job.id }, data: { embeddingId: job.id } });
+    }
 
     res.status(201).json(job);
   } catch (error) {
@@ -46,17 +48,22 @@ export const createJob = async (req: Request, res: Response) => {
   }
 };
 
+
 export const getJobs = async (req: Request, res: Response) => {
   try {
     const recruiterId = (req as any).user?.id;
-    if (!recruiterId) return res.status(401).json({ error: 'Unauthorized' });
+    
+    const whereClause = recruiterId ? { recruiterId } : {};
 
+    console.log(`Fetching jobs. Filter: ${JSON.stringify(whereClause)}`);
     const jobs = await prisma.job.findMany({
-      where: { recruiterId },
+      where: whereClause,
       orderBy: { createdAt: 'desc' }
     });
+    console.log(`Found ${jobs.length} jobs`);
     res.json(jobs);
   } catch (error) {
+    console.error("Error in getJobs:", error);
     res.status(500).json({ error: 'Failed to fetch jobs.' });
   }
 };

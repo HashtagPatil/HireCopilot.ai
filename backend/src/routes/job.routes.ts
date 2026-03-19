@@ -4,6 +4,8 @@ import { authenticate } from '../middlewares/auth';
 
 const router = Router();
 
+router.get('/all', getJobs); // Publicly accessible - MUST BE ABOVE authenticate
+
 router.use(authenticate);
 
 router.post('/generate-description', generateDescription);
