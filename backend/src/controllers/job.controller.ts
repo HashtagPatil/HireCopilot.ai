@@ -8,11 +8,16 @@ const prisma = new PrismaClient();
 export const createJob = async (req: Request, res: Response) => {
   try {
     const { title, description, requirements, skills, experience } = req.body;
+    console.log(`Received createJob request: ${JSON.stringify({ title, recruiterId: (req as any).user?.id })}`);
+    
     const recruiterId = (req as any).user?.id;
-
-    if (!recruiterId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!recruiterId) {
+      console.warn('Unauthorized createJob attempt');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     // Create job first (don't block on AI)
+    console.log('Creating job in Prisma...');
     const job = await prisma.job.create({
       data: {
         title,
@@ -24,29 +29,34 @@ export const createJob = async (req: Request, res: Response) => {
         embeddingId: 'pending',
       },
     });
+    console.log(`Job created: ${job.id}`);
 
     // Try to compute embedding (non-blocking if AI fails)
     try {
+      console.log('Generating embedding...');
       const combinedText = `${title} ${description} ${requirements} ${skills} ${experience}`;
       const embedding = await AIService.getEmbedding(combinedText);
+      console.log('Embedding generated. Storing in vector store...');
       vectorStore.addEmbedding({
         id: job.id,
         type: 'job',
         embedding,
         metadata: { title, recruiterId }
       });
+      console.log('Updating job with embedding state...');
       await prisma.job.update({ where: { id: job.id }, data: { embeddingId: job.id } });
-    } catch (embeddingErr) {
-      console.warn('Job embedding skipped (AI unavailable):', (embeddingErr as Error).message);
+    } catch (embeddingErr: any) {
+      console.warn('Job embedding skipped (AI unavailable):', embeddingErr.message);
       await prisma.job.update({ where: { id: job.id }, data: { embeddingId: job.id } });
     }
 
     res.status(201).json(job);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create job.' });
+  } catch (error: any) {
+    console.error('CRITICAL ERROR in createJob:', error);
+    res.status(500).json({ error: 'Failed to create job.', details: error.message });
   }
 };
+
 
 
 export const getJobs = async (req: Request, res: Response) => {
@@ -62,9 +72,9 @@ export const getJobs = async (req: Request, res: Response) => {
     });
     console.log(`Found ${jobs.length} jobs`);
     res.json(jobs);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in getJobs:", error);
-    res.status(500).json({ error: 'Failed to fetch jobs.' });
+    res.status(500).json({ error: 'Failed to fetch jobs.', details: error.message });
   }
 };
 
